@@ -1,2 +1,2 @@
-# stemcstudio-jshint
-JsHint
+# davinci-matrix
+A matrix library for Machine Learning
