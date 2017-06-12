@@ -1087,7 +1087,7 @@ function delim(s: string) {
     return x;
 }
 
-function stmt(s: string, f: (context: any) => void) {
+function stmt(s: string, f: (context: any) => void): IToken {
     var x = delim(s);
     x.identifier = x.reserved = true;
     x.fud = f;
@@ -1215,9 +1215,9 @@ function application(s: string) {
 }
 
 function relation(s: string, f?) {
-    var x = symbol(s, 100);
+    const x = symbol(s, 100);
 
-    x.led = function (left) {
+    x.led = function (this: IToken, left) {
         nobreaknonadjacent(state.tokens.prev, state.tokens.curr);
         this.left = left;
         var right = this.right = expression(100);
