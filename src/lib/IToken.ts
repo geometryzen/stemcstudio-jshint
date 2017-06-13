@@ -1,3 +1,11 @@
+export interface LeftDenotation {
+    (this: IToken, left: IToken): any;
+}
+
+export interface NullDenotation {
+    (): IToken;
+}
+
 export interface IToken {
     accessorType?: 'get' | 'set';
     allowNewLine?: boolean;
@@ -12,6 +20,7 @@ export interface IToken {
     block?;
     body?;
     caseFallsThrough?;
+    cases?: any[];
     char?: string;
     character?;
     check?;
@@ -20,8 +29,10 @@ export interface IToken {
     context?;
     delim?;
     depth?;
+    destructAssign?: { id: string; token: IToken }[];
+    exprs?: IToken[];
     exps?: boolean;
-    first?: IToken;
+    first?: IToken | IToken[];
     flags?: string[];
     forgiveUndef?: boolean;
     from?: number;
@@ -32,6 +43,7 @@ export interface IToken {
     immed?;
     inBracelessBlock?;
     infix?: boolean;
+    isFutureReservedWord?: boolean;
     isLegacy?: boolean;
     isMalformed?: boolean;
     isMetaProperty?;
@@ -42,19 +54,25 @@ export interface IToken {
     jump?: number;
     label?;
     labelled?;
-    lbp?;
-    led?;
-    left?;
+    lbp?: number;
+    led?: LeftDenotation;
+    left?: IToken;
     line?;
     /**
      * Duplicates isMalformed?
      */
     malformed?: boolean;
     meta?;
-    nud?;
+    name?: string;
+    namedExpr?: boolean;
+    noSubst?: boolean;
+    nud?: NullDenotation;
+    paren?: any;
+    prereg?: boolean;
     quote?: "'" | '"';
     reach?;
     reserved?: boolean;
+    right?: IToken;
     startChar?: number;
     startLine?: number;
     tail?;

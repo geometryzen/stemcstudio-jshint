@@ -1,0 +1,9 @@
+export declare const unsafeString: RegExp;
+export declare const unsafeChars: RegExp;
+export declare const needEsc: RegExp;
+export declare const needEscGlobal: RegExp;
+export declare const starSlash: RegExp;
+export declare const identifierRegExp: RegExp;
+export declare const javascriptURL: RegExp;
+export declare const fallsThrough: RegExp;
+export declare const maxlenException: RegExp;

@@ -1,12 +1,9 @@
-/*jshint quotmark:double */
-/*global console:true */
-/*exported console */
 import { JSHintOptions } from './JSHintOptions';
 import { JSHintError } from './JSHintError';
 import { EventEmitter } from "./EventEmitter";
 import { browser, browserify, couch, devel, dojo, ecmaIdentifiers, jasmine, jquery, mocha, mootools, node, nonstandard, phantom, prototypejs, qunit, reservedVars, rhino, shelljs, typed, worker, wsh, yui } from "./vars";
 import { errors, info, warnings, CodeAndDesc } from "./messages";
-import { IToken } from './IToken';
+import { IToken, LeftDenotation, NullDenotation } from './IToken';
 import { Lexer } from "./lex";
 import { identifierRegExp, javascriptURL } from "./reg";
 import { state } from "./state";
@@ -343,12 +340,24 @@ function removeIgnoredMessages(): void {
     JSHINT.errors = reject<JSHintError>(errors, function excluder(err) { return ignored[err.line]; });
 }
 
-function warning(code: string, t?: IToken, a?: number | string, b?: number | string, c?: string, d?: string): JSHintError {
+/**
+ * 1. Look up the description for the error, info, or warning.
+ * 2. Return undefined if it is ignorable.
+ * 3. Construct the JSHintError.
+ * 4. Add it to JSHINT.errors.
+ * @param code
+ * @param t
+ * @param a 
+ * @param b 
+ * @param c 
+ * @param d 
+ */
+function warning(code: string, t?: IToken, a?: number | string, b?: number | string, c?: string, d?: string): JSHintError | undefined {
     let msg: CodeAndDesc;
 
     if (/^W\d{3}$/.test(code)) {
         if (state.ignored[code]) {
-            return;
+            return void 0;
         }
         msg = warnings[code];
     }
@@ -878,8 +887,8 @@ function isBeginOfExpr(prev: IToken): boolean {
 
 // They are elements of the parsing method called Top Down Operator Precedence.
 
-function expression(rbp, initial?): IToken {
-    let left: { value: any; first: any; id: any };
+function expression(rbp: number, initial?): IToken {
+    let left: IToken;
     var isArray = false, isObject = false, isLetExpr = false;
 
     state.nameStack.push();
@@ -901,7 +910,7 @@ function expression(rbp, initial?): IToken {
     if (state.tokens.next.id === "(end)")
         error("E006", state.tokens.curr);
 
-    var isDangerous =
+    const isDangerous =
         state.option.asi &&
         state.tokens.prev.line !== startLine(state.tokens.curr) &&
         contains(["]", ")"], state.tokens.prev.id) &&
@@ -919,10 +928,12 @@ function expression(rbp, initial?): IToken {
 
     if (initial === true && state.tokens.curr.fud) {
         left = state.tokens.curr.fud();
-    } else {
+    }
+    else {
         if (state.tokens.curr.nud) {
             left = state.tokens.curr.nud();
-        } else {
+        }
+        else {
             error("E030", state.tokens.curr, state.tokens.curr.id);
         }
 
@@ -935,12 +946,12 @@ function expression(rbp, initial?): IToken {
             // #527, new Foo.Array(), Foo.Array(), new Foo.Object(), Foo.Object()
             // Line breaks in IfStatement heads exist to satisfy the checkJSHint
             // "Line too long." error.
-            if (left && (left.value || (left.first && left.first.value))) {
+            if (left && (left.value || (left.first && (left.first as IToken).value))) {
                 // If the left.value is not "new", or the left.first.value is a "."
                 // then safely assume that this is not "new Array()" and possibly
                 // not "new Object()"...
                 if (left.value !== "new" ||
-                    (left.first && left.first.value && left.first.value === ".")) {
+                    (left.first && (left.first as IToken).value && (left.first as IToken).value === ".")) {
                     isArray = false;
                     // ...In the case of Object, if the left.value and state.tokens.curr.value
                     // are not equal, then safely assume that this not "new Object()"
@@ -962,7 +973,8 @@ function expression(rbp, initial?): IToken {
 
             if (left && state.tokens.curr.led) {
                 left = state.tokens.curr.led(left);
-            } else {
+            }
+            else {
                 error("E033", state.tokens.curr, state.tokens.curr.id);
             }
         }
@@ -1069,8 +1081,8 @@ function comma(opts?) {
 // Functional constructors for making the symbols that will be inherited by
 // tokens.
 
-function symbol(s: string, p) {
-    var x = state.syntax[s];
+function symbol(s: string, p: number): IToken {
+    let x = state.syntax[s];
     if (!x || typeof x !== "object") {
         state.syntax[s] = x = {
             id: s,
@@ -1081,21 +1093,21 @@ function symbol(s: string, p) {
     return x;
 }
 
-function delim(s: string) {
+function delim(s: string): IToken {
     var x = symbol(s, 0);
     x.delim = true;
     return x;
 }
 
-function stmt(s: string, f: (context: any) => void): IToken {
+function stmt(s: string, f: (this: IToken, context: any) => void): IToken {
     var x = delim(s);
     x.identifier = x.reserved = true;
     x.fud = f;
     return x;
 }
 
-function blockstmt(s: string, f: (context) => void) {
-    var x = stmt(s, f);
+function blockstmt(s: string, f: (this: IToken, context) => void) {
+    const x = stmt(s, f);
     x.block = true;
     return x;
 }
@@ -1108,11 +1120,11 @@ function reserveName(x: IToken) {
     return x;
 }
 
-function prefix(s: string, f?) {
-    var x = symbol(s, 150);
+function prefix(s: string, f?: string | NullDenotation): IToken {
+    const x = symbol(s, 150);
     reserveName(x);
 
-    x.nud = (typeof f === "function") ? f : function () {
+    x.nud = (typeof f === "function") ? f : function (this: IToken) {
         this.arity = "unary";
         this.right = expression(150);
 
@@ -1139,8 +1151,8 @@ function prefix(s: string, f?) {
     return x;
 }
 
-function type(s: string, func) {
-    var x = delim(s);
+function type(s: string, func: NullDenotation) {
+    const x = delim(s);
     x.type = s;
     x.nud = func;
     return x;
@@ -1153,8 +1165,8 @@ function reserve(name: string, func?) {
     return x;
 }
 
-function FutureReservedWord(name: string, meta?) {
-    var x = type(name, (meta && meta.nud) || function () {
+function FutureReservedWord(name: string, meta?: { es5?: boolean; isFutureReservedWord?: boolean, nud?: NullDenotation; strictOnly?: boolean }) {
+    const x = type(name, (meta && meta.nud) || function (this: IToken) {
         return this;
     });
 
@@ -1169,8 +1181,8 @@ function FutureReservedWord(name: string, meta?) {
     return x;
 }
 
-function reservevar(s: string, v?) {
-    return reserve(s, function () {
+function reservevar(s: string, v?: (x: IToken) => void) {
+    return reserve(s, function (this: IToken) {
         if (typeof v === "function") {
             v(this);
         }
@@ -1178,11 +1190,11 @@ function reservevar(s: string, v?) {
     });
 }
 
-function infix(s: string, f, p, w?) {
-    var x = symbol(s, p);
+function infix(s: string, f: ((left: IToken, right: IToken) => IToken) | string, p: number, w?): IToken {
+    const x = symbol(s, p);
     reserveName(x);
     x.infix = true;
-    x.led = function (left) {
+    x.led = function (this: IToken, left: IToken) {
         if (!w) {
             nobreaknonadjacent(state.tokens.prev, state.tokens.curr);
         }
@@ -1214,7 +1226,7 @@ function application(s: string) {
     return x;
 }
 
-function relation(s: string, f?) {
+function relation(s: string, f?: (this: IToken, left: any, right: any) => IToken) {
     const x = symbol(s, 100);
 
     x.led = function (this: IToken, left) {
@@ -1415,8 +1427,8 @@ function checkLeftSideAssign(left, assignToken?, options?: { allowDestructuring?
     return false;
 }
 
-function assignop(s, f, p) {
-    var x = infix(s, typeof f === "function" ? f : function (left, that) {
+function assignop(s: string, f, p: number) {
+    var x = infix(s, typeof f === "function" ? f : function (left, that): IToken | undefined {
         that.left = left;
 
         if (left && checkLeftSideAssign(left, that, { allowDestructuring: true })) {
@@ -1425,6 +1437,7 @@ function assignop(s, f, p) {
         }
 
         error("E031", that);
+        return void 0;
     }, p);
 
     x.exps = true;
@@ -1433,10 +1446,10 @@ function assignop(s, f, p) {
 }
 
 
-function bitwise(s, f, p) {
-    var x = symbol(s, p);
+function bitwise(s: string, f: string | LeftDenotation, p: number): IToken {
+    const x = symbol(s, p);
     reserveName(x);
-    x.led = (typeof f === "function") ? f : function (left) {
+    x.led = (typeof f === "function") ? f : function (this: IToken, left) {
         if (state.option.bitwise) {
             warning("W016", this, this.id);
         }
@@ -1491,17 +1504,17 @@ function suffix(s) {
 // argument (see identifier())
 // prop means that this identifier is that of an object property
 
-function optionalidentifier(fnparam?, prop?, preserve?) {
+function optionalidentifier(fnparam?, prop?, preserve?): string | undefined {
     if (!state.tokens.next.identifier) {
-        return;
+        return void 0;
     }
 
     if (!preserve) {
         advance();
     }
 
-    var curr = state.tokens.curr;
-    var val = state.tokens.curr.value;
+    const curr = state.tokens.curr;
+    const val = state.tokens.curr.value;
 
     if (!isReserved(curr)) {
         return val;
@@ -1524,8 +1537,8 @@ function optionalidentifier(fnparam?, prop?, preserve?) {
 // fnparam means that this identifier is being defined as a function
 // argument
 // prop means that this identifier is that of an object property
-function identifier(fnparam?, prop?) {
-    var i = optionalidentifier(fnparam, prop, false);
+function identifier(fnparam?, prop?): string | undefined {
+    const i = optionalidentifier(fnparam, prop, false);
     if (i) {
         return i;
     }
@@ -1546,11 +1559,12 @@ function identifier(fnparam?, prop?) {
 
         if (!state.tokens.next.identifier) {
             warning("E024", state.tokens.curr, "...");
-            return;
+            return void 0;
         }
 
         return identifier(fnparam, prop);
-    } else {
+    }
+    else {
         error("E030", state.tokens.next, state.tokens.next.value);
 
         // The token should be consumed after a warning is issued so the parser
@@ -1561,6 +1575,7 @@ function identifier(fnparam?, prop?) {
             advance();
         }
     }
+    return void 0;
 }
 
 
@@ -1935,11 +1950,11 @@ function countMember(m) {
 
 // Build the syntax table by declaring the syntactic elements of the language.
 
-type("(number)", function () {
+type("(number)", function (this: IToken) {
     return this;
 });
 
-type("(string)", function () {
+type("(string)", function (this: IToken) {
     return this;
 });
 
@@ -1979,7 +1994,7 @@ var baseTemplateSyntax = {
     identifier: false,
     template: true,
 };
-state.syntax["(template)"] = extend({
+state.syntax["(template)"] = <IToken>extend({
     type: "(template)",
     nud: doTemplateLiteral,
     led: doTemplateLiteral,
@@ -1998,7 +2013,7 @@ state.syntax["(template tail)"] = extend({
     noSubst: false
 }, baseTemplateSyntax);
 
-state.syntax["(no subst template)"] = extend({
+state.syntax["(no subst template)"] = <IToken>extend({
     type: "(template)",
     nud: doTemplateLiteral,
     led: doTemplateLiteral,
@@ -2006,7 +2021,7 @@ state.syntax["(no subst template)"] = extend({
     tail: true // mark as tail, since it's always the last component
 }, baseTemplateSyntax);
 
-type("(regexp)", function () {
+type("(regexp)", function (this: IToken) {
     return this;
 });
 
@@ -2032,7 +2047,7 @@ reserve("case").reach = true;
 reserve("catch");
 reserve("default").reach = true;
 reserve("finally");
-reservevar("arguments", function (x) {
+reservevar("arguments", function (x: IToken) {
     if (state.isStrict() && state.funct["(global)"]) {
         warning("E008", x);
     }
@@ -2041,7 +2056,7 @@ reservevar("eval");
 reservevar("false");
 reservevar("Infinity");
 reservevar("null");
-reservevar("this", function (x) {
+reservevar("this", function (x: IToken) {
     if (state.isStrict() && !isMethod() &&
         !state.option.validthis && ((state.funct["(statement)"] &&
             state.funct["(name)"].charAt(0) > "Z") || state.funct["(global)"])) {
@@ -2057,6 +2072,7 @@ assignop("-=", "assignsub", 20);
 assignop("*=", "assignmult", 20);
 assignop("/=", "assigndiv", 20).nud = function () {
     error("E014");
+    return void 0;
 };
 assignop("%=", "assignmod", 20);
 
@@ -2066,7 +2082,8 @@ bitwiseassignop("^=");
 bitwiseassignop("<<=");
 bitwiseassignop(">>=");
 bitwiseassignop(">>>=");
-infix(",", function (left, that) {
+
+infix(",", function (left: IToken, that: IToken) {
     var expr;
     that.exprs = [left];
 
@@ -2098,8 +2115,8 @@ infix("?", function (left, that) {
     return that;
 }, 30);
 
-var orPrecendence = 40;
-infix("||", function (left, that) {
+const orPrecendence = 40;
+infix("||", function (left: IToken, that: IToken) {
     increaseComplexityCount();
     that.left = left;
     that.right = expression(orPrecendence);
@@ -2109,7 +2126,7 @@ infix("&&", "and", 50);
 bitwise("|", "bitor", 70);
 bitwise("^", "bitxor", 80);
 bitwise("&", "bitand", 90);
-relation("==", function (left, right) {
+relation("==", function doubleEquals(this: IToken, left, right): IToken {
     var eqnull = state.option.eqnull &&
         ((left && left.value) === "null" || (right && right.value) === "null");
 
@@ -2194,13 +2211,13 @@ infix("+", function (left, that) {
     return that;
 }, 130);
 prefix("+", "num");
-prefix("+++", function () {
+prefix("+++", function (this: IToken) {
     warning("W007");
     this.arity = "unary";
     this.right = expression(150);
     return this;
 });
-infix("+++", function (left) {
+infix("+++", function (this: IToken, left) {
     warning("W007");
     this.left = left;
     this.right = expression(130);
@@ -2208,13 +2225,13 @@ infix("+++", function (left) {
 }, 130);
 infix("-", "sub", 130);
 prefix("-", "neg");
-prefix("---", function () {
+prefix("---", function (this: IToken) {
     warning("W006");
     this.arity = "unary";
     this.right = expression(150);
     return this;
 });
-infix("---", function (left) {
+infix("---", function (this: IToken, left) {
     warning("W006");
     this.left = left;
     this.right = expression(130);
@@ -2231,7 +2248,7 @@ state.syntax["++"].exps = true;
 suffix("--");
 prefix("--", "predec");
 state.syntax["--"].exps = true;
-prefix("delete", function () {
+prefix("delete", function (this: IToken) {
     var p = expression(10);
     if (!p) {
         return this;
@@ -2250,7 +2267,7 @@ prefix("delete", function () {
     return this;
 }).exps = true;
 
-prefix("~", function () {
+prefix("~", function (this: IToken) {
     if (state.option.bitwise) {
         warning("W016", this, "~");
     }
@@ -2259,7 +2276,7 @@ prefix("~", function () {
     return this;
 });
 
-prefix("...", function () {
+prefix("...", function (this: IToken) {
     if (!state.inES6(true)) {
         warning("W119", this, "spread/rest operator", "6");
     }
@@ -2305,7 +2322,7 @@ prefix("...", function () {
     return this;
 });
 
-prefix("!", function () {
+prefix("!", function (this: IToken) {
     this.arity = "unary";
     this.right = expression(150);
 
@@ -2319,7 +2336,7 @@ prefix("!", function () {
     return this;
 });
 
-prefix("typeof", (function () {
+prefix("typeof", (function (this: IToken) {
     var p = expression(150);
     this.first = this.right = p;
 
@@ -2334,7 +2351,7 @@ prefix("typeof", (function () {
     }
     return this;
 }));
-prefix("new", function () {
+prefix("new", function (this: IToken) {
     var mp = metaProperty("target", function () {
         if (!state.inES6(true)) {
             warning("W119", state.tokens.prev, "new.target", "6");
@@ -2512,7 +2529,7 @@ infix("(", function (left, that) {
     return that;
 }, 155, true).exps = true;
 
-prefix("(", function () {
+prefix("(", function (this: IToken) {
     var pn = state.tokens.next, pn1, i = -1;
     var ret, triggerFnExpr, first, last;
     var parens = 1;
@@ -2759,7 +2776,7 @@ var lookupBlockType = function () {
     return ret;
 };
 
-prefix("[", function () {
+prefix("[", function (this: IToken) {
     var blocktype = lookupBlockType();
     if (blocktype.isCompArray) {
         if (!state.option.esnext && !state.inMoz()) {
@@ -2800,7 +2817,7 @@ prefix("[", function () {
             break;
         }
 
-        this.first.push(expression(10));
+        (this.first as IToken[]).push(expression(10));
         if (state.tokens.next.id === ",") {
             comma({ allowTrailing: true });
             if (<string>state.tokens.next.id === "]" && !state.inES5()) {
@@ -2873,7 +2890,7 @@ function propertyName(preserveOrToken?) {
  *                                       already been parsed.
  * @returns {{ arity: number, params: Array.<string>}}
  */
-function functionparams(options) {
+function functionparams(options): { arity: number, params: any[] } | undefined {
     var next;
     var paramsIds = [];
     var ident;
@@ -2897,7 +2914,7 @@ function functionparams(options) {
 
     if (state.tokens.next.id === ")") {
         advance(")");
-        return;
+        return void 0;
     }
 
     function addParam(addParamArgs) {
@@ -3020,11 +3037,16 @@ function hasParsedCode(funct) {
     return funct["(global)"] && !funct["(verb)"];
 }
 
-function doTemplateLiteral(left) {
+/**
+ * This is used as a LeftDenotation and a NullDenotation, suggesting that these types must be the same?
+ * @param this 
+ * @param left 
+ */
+function doTemplateLiteral(this: IToken, left: IToken) {
     // ASSERT: this.type === "(template)"
     // jshint validthis: true
     var ctx = this.context;
-    var noSubst = this.noSubst;
+    const noSubst = this.noSubst;
     var depth = this.depth;
 
     if (!noSubst) {
@@ -3045,10 +3067,10 @@ function doTemplateLiteral(left) {
     };
 
     function end() {
-        if (state.tokens.curr.template && state.tokens.curr.tail &&
-            state.tokens.curr.context === ctx) return true;
-        var complete = (state.tokens.next.template && state.tokens.next.tail &&
-            state.tokens.next.context === ctx);
+        if (state.tokens.curr.template && state.tokens.curr.tail && state.tokens.curr.context === ctx) {
+            return true;
+        }
+        const complete = (state.tokens.next.template && state.tokens.next.tail && state.tokens.next.context === ctx);
         if (complete) advance();
         return complete || state.tokens.next.isUnclosed;
     }
@@ -3180,8 +3202,7 @@ function createMetrics(functionStartToken) {
         arity: 0,
 
         verifyMaxStatementsPerFunction: function () {
-            if (state.option.maxstatements &&
-                this.statementCount > state.option.maxstatements) {
+            if (state.option.maxstatements && this.statementCount > state.option.maxstatements) {
                 warning("W071", functionStartToken, this.statementCount);
             }
         },
@@ -3259,7 +3280,7 @@ function checkProperties(props) {
     }
 }
 
-function metaProperty(name, c) {
+function metaProperty(name, c: () => void): IToken | undefined {
     if (checkPunctuator(state.tokens.next, ".")) {
         var left = state.tokens.curr.id;
         advance(".");
@@ -3267,11 +3288,13 @@ function metaProperty(name, c) {
         state.tokens.curr.isMetaProperty = true;
         if (name !== id) {
             error("E057", state.tokens.prev, left, id);
-        } else {
+        }
+        else {
             c();
         }
         return state.tokens.curr;
     }
+    return void 0;
 }
 
 (function (x) {
@@ -3559,20 +3582,23 @@ function destructuringPatternRecursive(options): { id: string; token: IToken }[]
 }
 
 function destructuringPatternMatch(tokens: IToken[], value: IToken) {
-    var first = value.first;
+    const first = value.first;
 
     if (!first) {
         return;
     }
 
-    zip(tokens, Array.isArray(first) ? first : [first]).forEach(function (val) {
-        var token = val[0];
-        var value = val[1];
+    zip(tokens, Array.isArray(first) ? first : [first]).forEach(function (val: [IToken, IToken]) {
+        const token = val[0];
+        const value = val[1];
 
-        if (token && value)
+        if (token && value) {
             token.first = value;
-        else if (token && token.first && !value)
-            warning("W080", token.first, token.first.value);
+        }
+        else if (token && token.first && !value) {
+            // TODO: How is it that we can justify the cast?
+            warning("W080", token.first, (token.first as IToken).value);
+        }
     });
 }
 
@@ -3687,7 +3713,7 @@ var letstatement = stmt("let", function (context) {
 });
 letstatement.exps = true;
 
-var varstatement = stmt("var", function (context) {
+var varstatement = stmt("var", function (this: IToken, context) {
     var prefix = context && context.prefix;
     var inexport = context && context.inexport;
     var tokens, lone, value;
@@ -3702,7 +3728,8 @@ var varstatement = stmt("var", function (context) {
         if (contains(["{", "["], state.tokens.next.value)) {
             tokens = destructuringPattern();
             lone = false;
-        } else {
+        }
+        else {
             tokens = [{ id: identifier(), token: state.tokens.curr }];
             lone = true;
         }
@@ -3711,9 +3738,9 @@ var varstatement = stmt("var", function (context) {
             warning("W132", this);
         }
 
-        this.first = this.first.concat(names);
+        this.first = (this.first as IToken[]).concat(names);
 
-        for (var name in tokens) {
+        for (const name in tokens) {
             if (tokens.hasOwnProperty(name)) {
                 const t = tokens[name];
                 if (!implied && state.funct["(global)"]) {
@@ -3786,7 +3813,7 @@ blockstmt("class", function () {
     return classdef.call(this, true);
 });
 
-function classdef(isStatement) {
+function classdef(this: IToken, isStatement: boolean) {
 
     /*jshint validthis:true */
     if (!state.inES6()) {
@@ -3800,11 +3827,13 @@ function classdef(isStatement) {
             type: "class",
             token: state.tokens.curr
         });
-    } else if (state.tokens.next.identifier && state.tokens.next.value !== "extends") {
+    }
+    else if (state.tokens.next.identifier && state.tokens.next.value !== "extends") {
         // BindingIdentifier(opt)
         this.name = identifier();
         this.namedExpr = true;
-    } else {
+    }
+    else {
         this.name = state.nameStack.infer();
     }
     classtail(this);
@@ -3939,7 +3968,7 @@ function classbody(c) {
     checkProperties(props);
 }
 
-blockstmt("function", function (context) {
+blockstmt("function", function (this: IToken, context) {
     var inexport = context && context.inexport;
     var generator = false;
     if (state.tokens.next.value === "*") {
@@ -3978,8 +4007,8 @@ blockstmt("function", function (context) {
     return this;
 });
 
-prefix("function", function () {
-    var generator = false;
+prefix("function", function (this: IToken) {
+    let generator = false;
 
     if (state.tokens.next.value === "*") {
         if (!state.inES6()) {
@@ -4092,7 +4121,7 @@ blockstmt("try", function () {
     if (state.tokens.next.id === "finally") {
         advance("finally");
         block(true);
-        return;
+        return void 0;
     }
 
     if (!b) {
@@ -4132,7 +4161,7 @@ blockstmt("with", function () {
     return this;
 });
 
-blockstmt("switch", function () {
+blockstmt("switch", function (this: IToken) {
     var t = state.tokens.next;
     var g = false;
     var noindent = false;
@@ -4243,7 +4272,7 @@ blockstmt("switch", function () {
     }
 }).labelled = true;
 
-stmt("debugger", function () {
+stmt("debugger", function (this: IToken) {
     if (!state.option.debug) {
         warning("W087", this);
     }
@@ -4251,7 +4280,7 @@ stmt("debugger", function () {
 }).exps = true;
 
 (function () {
-    var x = stmt("do", function () {
+    var x = stmt("do", function (this: IToken) {
         state.funct["(breakage)"] += 1;
         state.funct["(loopage)"] += 1;
         increaseComplexityCount();
@@ -4270,7 +4299,7 @@ stmt("debugger", function () {
     x.exps = true;
 }());
 
-blockstmt("for", function () {
+blockstmt("for", function (this: IToken) {
     var s, t = state.tokens.next;
     var letscope = false;
     var foreachtok = null;
@@ -4443,7 +4472,7 @@ blockstmt("for", function () {
 }).labelled = true;
 
 
-stmt("break", function () {
+stmt("break", function (this: IToken) {
     var v = state.tokens.next.value;
 
     if (!state.option.asi)
@@ -4467,7 +4496,7 @@ stmt("break", function () {
 }).exps = true;
 
 
-stmt("continue", function () {
+stmt("continue", function continueHandler(this: IToken) {
     var v = state.tokens.next.value;
 
     if (state.funct["(breakage)"] === 0)
@@ -4520,7 +4549,7 @@ stmt("return", function () {
 (function (x) {
     x.exps = true;
     x.lbp = 25;
-}(prefix("yield", function () {
+}(prefix("yield", function (this: IToken) {
     var prev = state.tokens.prev;
     if (state.inES6(true) && !state.funct["(generator)"]) {
         // If it's a yield within a catch clause inside a generator then that's ok
@@ -4572,7 +4601,7 @@ stmt("throw", function () {
     return this;
 }).exps = true;
 
-stmt("import", function () {
+stmt("import", function (this: IToken) {
     if (!state.inES6()) {
         warning("W119", state.tokens.curr, "import", "6");
     }
@@ -4799,7 +4828,7 @@ FutureReservedWord("abstract");
 FutureReservedWord("boolean");
 FutureReservedWord("byte");
 FutureReservedWord("char");
-FutureReservedWord("class", { es5: true, nud: classdef });
+FutureReservedWord("class", { es5: true, nud: <NullDenotation>classdef }); // TODO: Scarey casting.
 FutureReservedWord("double");
 FutureReservedWord("enum", { es5: true });
 FutureReservedWord("export", { es5: true });
@@ -4935,11 +4964,16 @@ function destructuringAssignOrJsonValue() {
 //  * "define" which will define the variables local to the list comprehension
 //  * "filter" which will help filter out values
 
-var arrayComprehension = function () {
-    var CompArray = function () {
+class CompArray {
+    mode: string;
+    variables: any[];
+    constructor() {
         this.mode = "use";
         this.variables = [];
-    };
+    }
+}
+
+var arrayComprehension = function () {
     var _carrays = [];
     var _current;
     function declare(v) {
@@ -4986,7 +5020,7 @@ var arrayComprehension = function () {
         },
         check: function (v) {
             if (!_current) {
-                return;
+                return void 0;
             }
             // When we are in "use" state of the list comp, we enqueue that var
             if (_current && _current.mode === "use") {
@@ -5001,7 +5035,8 @@ var arrayComprehension = function () {
                 }
                 return true;
                 // When we are in "define" state of the list comp,
-            } else if (_current && _current.mode === "define") {
+            }
+            else if (_current && _current.mode === "define") {
                 // check if the variable has been used previously
                 if (!declare(v)) {
                     _current.variables.push({
@@ -5014,11 +5049,13 @@ var arrayComprehension = function () {
                 }
                 return true;
                 // When we are in the "generate" state of the list comp,
-            } else if (_current && _current.mode === "generate") {
+            }
+            else if (_current && _current.mode === "generate") {
                 state.funct["(scope)"].block.use(v, state.tokens.curr);
                 return true;
                 // When we are in "filter" state,
-            } else if (_current && _current.mode === "filter") {
+            }
+            else if (_current && _current.mode === "filter") {
                 // we check whether current variable has been declared
                 if (use(v)) {
                     // if not we warn about it

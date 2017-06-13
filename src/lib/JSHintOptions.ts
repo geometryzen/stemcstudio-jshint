@@ -35,7 +35,7 @@ export interface JSHintOptions {
     indent?: number;
     iterator?: boolean;
     latedef?: boolean | string;
-    maxcomplexity?: boolean;
+    maxcomplexity?: number;
     maxdepth?: number;
     maxerr?: number;
     /**
@@ -43,7 +43,7 @@ export interface JSHintOptions {
      */
     maxlen?: number;
     maxparams?: boolean;
-    maxstatements?: boolean;
+    maxstatements?: number;
     /**
      * deprecated
      */

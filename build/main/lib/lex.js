@@ -124,9 +124,12 @@ var Lexer = (function () {
     Lexer.prototype.popContext = function () {
         return this.context.pop();
     };
-    Lexer.prototype.isContext = function (context) {
+    /*
+    FIXME: DEAD CODE?
+    private isContext(context: ILexerContext): boolean {
         return this.context.length > 0 && this.context[this.context.length - 1] === context;
-    };
+    }
+    */
     Lexer.prototype.currentContext = function () {
         return this.context.length > 0 && this.context[this.context.length - 1];
     };
@@ -168,11 +171,12 @@ var Lexer = (function () {
             _this.emitter.on(name, listener);
         });
     };
-    /*
-     * Trigger a token event. All arguments will be passed to each
-     * listener.
+    /**
+     * Trigger a token event.
+     * All arguments will be passed to each listener.
+     * TODO: Are `char` and `character` aliases?
      */
-    Lexer.prototype.trigger = function (unused0, unused1) {
+    Lexer.prototype.trigger = function (type, context) {
         this.emitter.emit.apply(this.emitter, Array.prototype.slice.call(arguments));
     };
     /*
@@ -470,6 +474,7 @@ var Lexer = (function () {
             this.inComment = false;
             return commentToken("/*", body, { isMultiline: true });
         }
+        return void 0;
     };
     /*
      * Extract a keyword out of the next sequence of characters or
