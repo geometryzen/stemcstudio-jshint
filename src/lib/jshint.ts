@@ -59,12 +59,12 @@ var api, // Extension API
     functions, // All of the functions
 
     inblock,
-    indent,
-    lookahead,
+    indent: number,
+    lookahead: IToken[],
     lex: Lexer,
     member,
     membersOnly,
-    predefined,    // Global variables defined by option
+    predefined: { [id: string]: boolean },    // Global variables defined by option
 
     stack,
     urls;
@@ -756,8 +756,8 @@ function doOption() {
 // from
 //     for ( var i = ...
 
-function peek(p?) {
-    var i = p || 0, j = lookahead.length, t;
+function peek(p?: number): IToken {
+    var i = p || 0, j = lookahead.length, t: IToken;
 
     if (i < j) {
         return lookahead[i];
@@ -1579,8 +1579,8 @@ function identifier(fnparam?, prop?): string | undefined {
 }
 
 
-function reachable(controlToken) {
-    var i = 0, t;
+function reachable(controlToken: IToken) {
+    var i = 0, t: IToken;
     if (state.tokens.next.id !== ";" || controlToken.inBracelessBlock) {
         return;
     }
@@ -1631,12 +1631,12 @@ function parseFinalSemicolon() {
     }
 }
 
-function statement() {
+function statement(): IToken {
     var i = indent, r, t = state.tokens.next, hasOwnScope = false;
 
     if (t.id === ";") {
         advance(";");
-        return;
+        return void 0;
     }
 
     // Is this a labelled statement?
@@ -1679,7 +1679,7 @@ function statement() {
         //  }
         var iscase = (state.funct["(verb)"] === "case" && state.tokens.curr.value === ":");
         block(true, true, false, false, iscase);
-        return;
+        return void 0;
     }
 
     // Parse the statement.
@@ -2981,8 +2981,8 @@ function functionparams(options): { arity: number, params: any[] } | undefined {
     }
 }
 
-function functor(name, token, overwrites) {
-    var funct = {
+function functor(name, token: IToken, overwrites): { [kind: string]: any } {
+    var funct: { [kind: string]: any } = {
         "(name)": name,
         "(breakage)": 0,
         "(loopage)": 0,
@@ -3022,18 +3022,16 @@ function functor(name, token, overwrites) {
     return funct;
 }
 
-function isFunctor(token) {
+function isFunctor(token: { [kind: string]: any }) {
     return "(scope)" in token;
 }
 
 /**
  * Determine if the parser has begun parsing executable code.
  *
- * @param {Token} funct - The current "functor" token
- *
- * @returns {boolean}
+ * @param funct - The current "functor" token
  */
-function hasParsedCode(funct) {
+function hasParsedCode(funct: { [kind: string]: any }): boolean {
     return funct["(global)"] && !funct["(verb)"];
 }
 
@@ -3194,7 +3192,7 @@ function doFunction(options?: { name?; statement?; type?; loneArg?; parsedOpenin
     return f;
 }
 
-function createMetrics(functionStartToken) {
+function createMetrics(functionStartToken: IToken) {
     return {
         statementCount: 0,
         nestedBlockDepth: -1,
@@ -3239,7 +3237,7 @@ function increaseComplexityCount() {
 // Parse assignments that were found instead of conditionals.
 // For example: if (a = 1) { ... }
 
-function checkCondAssignment(expr) {
+function checkCondAssignment(expr: IToken) {
     var id, paren;
     if (expr) {
         id = expr.id;
@@ -3280,7 +3278,7 @@ function checkProperties(props) {
     }
 }
 
-function metaProperty(name, c: () => void): IToken | undefined {
+function metaProperty(name: string, c: () => void): IToken | undefined {
     if (checkPunctuator(state.tokens.next, ".")) {
         var left = state.tokens.curr.id;
         advance(".");

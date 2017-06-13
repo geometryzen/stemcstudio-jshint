@@ -6336,7 +6336,7 @@ function statement() {
     var i = indent, r, t = state.tokens.next, hasOwnScope = false;
     if (t.id === ";") {
         advance(";");
-        return;
+        return void 0;
     }
     // Is this a labelled statement?
     var res = isReserved(t);
@@ -6370,7 +6370,7 @@ function statement() {
         //  }
         var iscase = (state.funct["(verb)"] === "case" && state.tokens.curr.value === ":");
         block(true, true, false, false, iscase);
-        return;
+        return void 0;
     }
     // Parse the statement.
     r = expression(0, true);
@@ -7584,9 +7584,7 @@ function isFunctor(token) {
 /**
  * Determine if the parser has begun parsing executable code.
  *
- * @param {Token} funct - The current "functor" token
- *
- * @returns {boolean}
+ * @param funct - The current "functor" token
  */
 function hasParsedCode(funct) {
     return funct["(global)"] && !funct["(verb)"];
