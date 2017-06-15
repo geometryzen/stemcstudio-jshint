@@ -349,16 +349,16 @@ function addInternalSrc(elem, src) {
 }
 function doOption() {
     var nt = state.tokens.next;
-    var body = nt.body.split(",").map(function (s) { return s.trim(); });
+    var bodyParts = nt.body.split(",").map(function (s) { return s.trim(); });
     var predef = {};
     if (nt.type === "globals") {
-        body.forEach(function (g, idx) {
-            g = g.split(":");
+        bodyParts.forEach(function (bodyPart, idx) {
+            var g = bodyPart.split(":");
             var key = (g[0] || "").trim();
             var val = (g[1] || "").trim();
             if (key === "-" || !key.length) {
                 // Ignore trailing comma
-                if (idx > 0 && idx === body.length - 1) {
+                if (idx > 0 && idx === bodyParts.length - 1) {
                     return;
                 }
                 error("E002", nt);
@@ -382,10 +382,10 @@ function doOption() {
         }
     }
     if (nt.type === "exported") {
-        body.forEach(function (e, idx) {
+        bodyParts.forEach(function (e, idx) {
             if (!e.length) {
                 // Ignore trailing comma
-                if (idx > 0 && idx === body.length - 1) {
+                if (idx > 0 && idx === bodyParts.length - 1) {
                     return;
                 }
                 error("E002", nt);
@@ -396,7 +396,7 @@ function doOption() {
     }
     if (nt.type === "members") {
         membersOnly = membersOnly || {};
-        body.forEach(function (m) {
+        bodyParts.forEach(function (m) {
             var ch1 = m.charAt(0);
             var ch2 = m.charAt(m.length - 1);
             if (ch1 === ch2 && (ch1 === "\"" || ch1 === "'")) {
@@ -417,8 +417,8 @@ function doOption() {
         "indent"
     ];
     if (nt.type === "jshint" || nt.type === "jslint") {
-        body.forEach(function (g) {
-            g = g.split(":");
+        bodyParts.forEach(function (bodyPart) {
+            var g = bodyPart.split(":");
             var key = (g[0] || "").trim();
             var val = (g[1] || "").trim();
             if (!checkOption(key, nt)) {
@@ -1134,18 +1134,21 @@ function findNativePrototype(left) {
     ];
     function walkPrototype(obj) {
         if (typeof obj !== "object")
-            return;
+            return void 0;
         return obj.right === "prototype" ? obj : walkPrototype(obj.left);
     }
     function walkNative(obj) {
         while (!obj.identifier && typeof obj.left === "object")
             obj = obj.left;
-        if (obj.identifier && natives.indexOf(obj.value) >= 0)
+        if (obj.identifier && natives.indexOf(obj.value) >= 0) {
             return obj.value;
+        }
+        return void 0;
     }
     var prototype = walkPrototype(left);
     if (prototype)
         return walkNative(prototype);
+    return void 0;
 }
 /**
  * Checks the left hand side of an assignment for issues, returns if ok
@@ -1250,6 +1253,7 @@ function bitwiseassignop(s) {
             return that;
         }
         error("E031", that);
+        return void 0;
     }, 20);
 }
 function suffix(s) {

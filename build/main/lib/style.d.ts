@@ -7,7 +7,7 @@ export interface Linter {
         line: number;
         char: number;
         data?: string[];
-    }): any;
+    }): void;
 }
 export interface Data {
     name: string;

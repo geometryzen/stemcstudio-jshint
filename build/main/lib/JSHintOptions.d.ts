@@ -74,7 +74,7 @@ export interface JSHintOptions {
      */
     strict?: string | boolean;
     undef?: boolean;
-    unused?: boolean;
+    unused?: boolean | string;
     varstmt?: boolean;
     ignoreDelimiters?: any;
     onevar?: boolean;

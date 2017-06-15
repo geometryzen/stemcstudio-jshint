@@ -636,10 +636,8 @@ exports.scopeManager = function (state, predefined, exported, declared) {
             },
             /**
              * Returns if a break label exists in the function scope
-             * @param {string} labelName
-             * @returns {boolean}
              */
-            hasBreakLabel: function (labelName) {
+            hasBreakLabel: function hasBreakLabel(labelName) {
                 for (var i = _scopeStack.length - 1; i >= 0; i--) {
                     var current = _scopeStack[i];
                     if (current["(breakLabels)"][labelName]) {
@@ -693,7 +691,7 @@ exports.scopeManager = function (state, predefined, exported, declared) {
                         paramScope["(labels)"][labelName]["(unused)"] = false;
                     }
                 }
-                if (token && (state.ignored.W117 || state.option.undef === false)) {
+                if (token && (state.ignored['W117'] || state.option.undef === false)) {
                     token.ignoreUndef = true;
                 }
                 _setupUsages(labelName);
@@ -703,8 +701,8 @@ exports.scopeManager = function (state, predefined, exported, declared) {
                 }
             },
             reassign: function (labelName, token) {
-                token.ignoreW020 = state.ignored.W020;
-                token.ignoreW021 = state.ignored.W021;
+                token.ignoreW020 = state.ignored['W020'];
+                token.ignoreW021 = state.ignored['W021'];
                 this.modify(labelName, token);
                 _current["(usages)"][labelName]["(reassigned)"].push(token);
             },

@@ -3,7 +3,7 @@ export interface Linter {
   getCache(name: string): boolean | string;
   setCache(name: string, value: string): void;
   getOption(name: string): boolean | string;
-  warn(code: string, warning: { line: number; char: number; data?: string[] });
+  warn(code: string, warning: { line: number; char: number; data?: string[] }): void;
 }
 
 export interface Data {

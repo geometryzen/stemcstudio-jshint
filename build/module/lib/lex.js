@@ -38,8 +38,6 @@ export var Context = {
     Block: 1,
     Template: 2
 };
-// Object that handles postponed lexing verifications that checks the parsed
-// environment state.
 function asyncTrigger() {
     var _checks = [];
     return {
@@ -1246,8 +1244,7 @@ var Lexer = (function () {
      * pages with non-breaking pages produce syntax errors.
      */
     Lexer.prototype.scanNonBreakingSpaces = function () {
-        return state.option.nonbsp ?
-            this.input.search(/(\u00A0)/) : -1;
+        return state.option.nonbsp ? this.input.search(/(\u00A0)/) : -1;
     };
     /*
      * Scan for characters that get silently deleted by one or more browsers.
@@ -1268,9 +1265,7 @@ var Lexer = (function () {
         }
         // Methods that work with multi-line structures and move the
         // character pointer.
-        var match = this.scanComments() ||
-            this.scanStringLiteral(checks) ||
-            this.scanTemplateLiteral(checks);
+        var match = this.scanComments() || this.scanStringLiteral(checks) || this.scanTemplateLiteral(checks);
         if (match) {
             return match;
         }

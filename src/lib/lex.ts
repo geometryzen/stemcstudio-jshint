@@ -50,11 +50,16 @@ type TriggerType = 'error' | 'fatal' | 'warning' | 'Identifier' | 'NoSubstTempla
 // Object that handles postponed lexing verifications that checks the parsed
 // environment state.
 
-function asyncTrigger() {
-    var _checks = [];
+interface Trigger {
+    push: (fn: () => any) => void;
+    check: () => void;
+}
+
+function asyncTrigger(): Trigger {
+    var _checks: (() => IToken)[] = [];
 
     return {
-        push: function (fn) {
+        push: function (fn: () => IToken) {
             _checks.push(fn);
         },
 
@@ -68,8 +73,12 @@ function asyncTrigger() {
     };
 }
 
-interface ILexerContext {
-    type: number;
+export interface ILexerContext {
+    type?: number;
+    prefix?: boolean;
+    ignore?: boolean;
+    implied?: string;
+    inexport?: true;
 }
 
 /*
@@ -209,7 +218,7 @@ export class Lexer {
      *     // ...
      *   });
      */
-    on(names: string, listener): void {
+    on(names: string, listener: Function): void {
         names.split(" ").forEach((name) => {
             this.emitter.on(name, listener);
         });
@@ -231,7 +240,7 @@ export class Lexer {
      * by the parser. This avoids parser's peek() to give the lexer
      * a false context.
      */
-    private triggerAsync(type: TriggerType, args, checks, fn: () => any) {
+    private triggerAsync(type: TriggerType, args: any, checks: Trigger, fn: () => any) {
         checks.push(() => {
             if (fn()) {
                 this.trigger(type, args);
@@ -414,7 +423,7 @@ export class Lexer {
         // has all the data JSHint needs to work with special
         // comments.
 
-        const commentToken = (label, body, opt?) => {
+        const commentToken = (label: string, body: string, opt?: { isMalformed?: boolean; isMultiline?: boolean }) => {
             var special = ["jshint", "jslint", "members", "member", "globals", "global", "exported"];
             var isSpecial = false;
             var value = label + body;
@@ -756,23 +765,23 @@ export class Lexer {
         var base = 10;
         var isLegacy = false;
 
-        function isDecimalDigit(str) {
+        function isDecimalDigit(str: string) {
             return (/^[0-9]$/).test(str);
         }
 
-        function isOctalDigit(str) {
+        function isOctalDigit(str: string) {
             return (/^[0-7]$/).test(str);
         }
 
-        function isBinaryDigit(str) {
+        function isBinaryDigit(str: string) {
             return (/^[01]$/).test(str);
         }
 
-        function isHexDigit(str) {
+        function isHexDigit(str: string) {
             return (/^[0-9a-fA-F]$/).test(str);
         }
 
-        function isIdentifierStart(ch) {
+        function isIdentifierStart(ch: string) {
             return (ch === "$") || (ch === "_") || (ch === "\\") ||
                 (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z");
         }
@@ -957,7 +966,7 @@ export class Lexer {
 
 
     // Assumes previously parsed character was \ (=== '\\') and was not skipped.
-    scanEscapeSequence(checks): IToken {
+    private scanEscapeSequence(checks: Trigger): IToken {
         var allowNewLine = false;
         var jump = 1;
         this.skip();
@@ -1060,7 +1069,7 @@ export class Lexer {
      * literals can span across multiple lines, this method has to move
      * the char pointer.
      */
-    scanTemplateLiteral(checks): IToken {
+    private scanTemplateLiteral(checks: Trigger): IToken {
         var tokenType;
         var value = "";
         var ch;
@@ -1164,7 +1173,7 @@ export class Lexer {
      *   var str = "hello\
      *   world";
      */
-    scanStringLiteral(checks): IToken {
+    private scanStringLiteral(checks: Trigger): IToken {
         /*jshint loopfunc:true */
         var quote = this.peek();
 
@@ -1457,15 +1466,14 @@ export class Lexer {
      * can be mistakenly typed on OS X with option-space. Non UTF-8 web
      * pages with non-breaking pages produce syntax errors.
      */
-    scanNonBreakingSpaces(): IToken {
-        return state.option.nonbsp ?
-            this.input.search(/(\u00A0)/) : -1;
+    scanNonBreakingSpaces(): number {
+        return state.option.nonbsp ? this.input.search(/(\u00A0)/) : -1;
     }
 
     /*
      * Scan for characters that get silently deleted by one or more browsers.
      */
-    scanUnsafeChars(): IToken {
+    scanUnsafeChars(): number {
         return this.input.search(unsafeChars);
     }
 
@@ -1473,7 +1481,7 @@ export class Lexer {
      * Produce the next raw token or return 'null' if no tokens can be matched.
      * This method skips over all space characters.
      */
-    next(checks): IToken {
+    private next(checks: Trigger): IToken {
         this.from = this.char;
 
         // Move to the next non-space character.
@@ -1485,9 +1493,7 @@ export class Lexer {
         // Methods that work with multi-line structures and move the
         // character pointer.
 
-        var match = this.scanComments() ||
-            this.scanStringLiteral(checks) ||
-            this.scanTemplateLiteral(checks);
+        var match = this.scanComments() || this.scanStringLiteral(checks) || this.scanTemplateLiteral(checks);
 
         if (match) {
             return match;
@@ -1600,7 +1606,7 @@ export class Lexer {
         var token: IToken;
 
 
-        function isReserved(token, isProperty) {
+        function isReserved(token: IToken, isProperty: boolean) {
             if (!token.reserved) {
                 return false;
             }
@@ -1629,7 +1635,7 @@ export class Lexer {
         }
 
         // Produce a token object.
-        var create = function (this: IToken, type, value, isProperty, token: IToken) {
+        var create = function (this: IToken, type: string, value: string, isProperty: boolean, token: IToken) {
             /*jshint validthis:true */
             var obj;
 

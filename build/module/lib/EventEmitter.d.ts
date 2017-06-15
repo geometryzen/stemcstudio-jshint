@@ -5,12 +5,12 @@ export declare class EventEmitter {
     _maxListeners: number;
     constructor();
     setMaxListeners(n: number): this;
-    emit(type: string, event: any, listener?: any): boolean;
-    on(type: string, listener: any): this;
-    once(type: any, listener: any): this;
-    off(type: string, listener: any): this;
-    removeAllListeners(type?: any): this;
+    emit(type: string, event: any, listener?: Function): boolean;
+    on(type: string, listener: Function): this;
+    once(type: string, listener: Function): this;
+    off(type: string, listener: Function): this;
+    removeAllListeners(type?: string): this;
     listeners(type: string): any;
     static defaultMaxListeners: number;
-    static listenerCount(emitter: any, type: any): number;
+    static listenerCount(emitter: EventEmitter, type: string): number;
 }

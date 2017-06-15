@@ -72,8 +72,7 @@ var EventEmitter = (function () {
         // To avoid recursion in the case that type === "newListener"! Before
         // adding it to the listeners, first emit "newListener".
         if (this._events.newListener)
-            this.emit('newListener', type, isFunction(listener.listener) ?
-                listener.listener : listener);
+            this.emit('newListener', type, isFunction(listener['listener']) ? listener['listener'] : listener);
         if (!this._events[type])
             // Optimize the case of one listener. Don't need the extra array object.
             this._events[type] = listener;

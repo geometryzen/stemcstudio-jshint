@@ -4,6 +4,13 @@ export declare const Context: {
     Block: number;
     Template: number;
 };
+export interface ILexerContext {
+    type?: number;
+    prefix?: boolean;
+    ignore?: boolean;
+    implied?: string;
+    inexport?: true;
+}
 export declare class Lexer {
     _lines: string[];
     emitter: EventEmitter;
@@ -30,7 +37,7 @@ export declare class Lexer {
     setLines(val: string[]): void;
     peek(i?: number): string;
     skip(i?: number): void;
-    on(names: string, listener: any): void;
+    on(names: string, listener: Function): void;
     /**
      * Trigger a token event.
      * All arguments will be passed to each listener.
@@ -43,13 +50,13 @@ export declare class Lexer {
     scanKeyword(): IToken;
     scanIdentifier(): IToken;
     scanNumericLiteral(): IToken;
-    scanEscapeSequence(checks: any): IToken;
-    scanTemplateLiteral(checks: any): IToken;
-    scanStringLiteral(checks: any): IToken;
+    private scanEscapeSequence(checks);
+    private scanTemplateLiteral(checks);
+    private scanStringLiteral(checks);
     scanRegExp(): IToken;
-    scanNonBreakingSpaces(): IToken;
-    scanUnsafeChars(): IToken;
-    next(checks: any): IToken;
+    scanNonBreakingSpaces(): number;
+    scanUnsafeChars(): number;
+    private next(checks);
     nextLine(): IToken;
     start(): void;
     token(): IToken;

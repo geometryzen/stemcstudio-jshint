@@ -1,39 +1,53 @@
 import { IState } from './state';
+import { IToken } from './IToken';
 /**
  * Creates a scope manager that handles variables and labels, storing usages
  * and resolving when variables are used and undefined
  */
 export declare const scopeManager: (state: IState, predefined: any, exported: any, declared: any) => {
-    on: (names: any, listener: any) => void;
-    isPredefined: (labelName: any) => boolean;
-    stack: (type: any) => void;
+    on: (names: string, listener: Function) => void;
+    isPredefined: (labelName: string) => boolean;
+    stack: (type: string) => void;
     unstack: () => void;
-    addParam: (labelName: string, token: any, type: any) => void;
+    addParam: (labelName: string, token: IToken, type: string) => void;
     validateParams: () => void;
     getUsedOrDefinedGlobals: () => string[];
     getImpliedGlobals: () => any;
-    getUnuseds: () => any[];
-    has: (labelName: any, unused?: any) => boolean;
-    labeltype: (labelName: any) => any;
-    addExported: (labelName: any) => void;
-    setExported: (labelName: any, token: any) => void;
-    addlabel: (labelName: any, opts: any) => void;
+    getUnuseds: () => {
+        name: string;
+        line: number;
+        character: number;
+    }[];
+    has: (labelName: string, unused?: any) => boolean;
+    labeltype: (labelName: string) => any;
+    addExported: (labelName: string) => void;
+    setExported: (labelName: string, token: IToken) => void;
+    addlabel: (labelName: string, opts: {
+        type: string;
+        token: IToken;
+    }) => void;
     funct: {
-        labeltype: (labelName: any, options?: {
+        labeltype: (labelName: string, options?: {
             excludeCurrent?: boolean;
             excludeParams?: boolean;
             onlyBlockscoped?: boolean;
         }) => any;
-        hasBreakLabel: (labelName: any) => boolean;
-        has: (labelName: string, options?: any) => boolean;
-        add: (labelName: any, type: any, tok: any, unused: any) => void;
+        hasBreakLabel: (labelName: string) => boolean;
+        has: (labelName: string, options?: {
+            excludeCurrent?: boolean;
+            excludeParams?: boolean;
+            onlyBlockscoped?: boolean;
+        }) => boolean;
+        add: (labelName: string, type: string, tok: IToken, unused: any) => void;
     };
     block: {
         isGlobal: () => boolean;
-        use: (labelName: any, token: any) => void;
-        reassign: (labelName: any, token: any) => void;
-        modify: (labelName: any, token: any) => void;
-        add: (labelName: any, type: any, tok: any, unused: any) => void;
-        addBreakLabel: (labelName: any, opts: any) => void;
+        use: (labelName: string, token: IToken) => void;
+        reassign: (labelName: string, token: IToken) => void;
+        modify: (labelName: string, token: IToken) => void;
+        add: (labelName: string, type: string, tok: IToken, unused: any) => void;
+        addBreakLabel: (labelName: string, opts: {
+            token: IToken;
+        }) => void;
     };
 };

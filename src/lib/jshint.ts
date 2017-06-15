@@ -4,9 +4,9 @@ import { EventEmitter } from "./EventEmitter";
 import { browser, browserify, couch, devel, dojo, ecmaIdentifiers, jasmine, jquery, mocha, mootools, node, nonstandard, phantom, prototypejs, qunit, reservedVars, rhino, shelljs, typed, worker, wsh, yui } from "./vars";
 import { errors, info, warnings, CodeAndDesc } from "./messages";
 import { IToken, LeftDenotation, NullDenotation } from './IToken';
-import { Lexer } from "./lex";
+import { ILexerContext, Lexer } from "./lex";
 import { identifierRegExp, javascriptURL } from "./reg";
-import { state } from "./state";
+import { IState, state } from "./state";
 import { register } from "./style";
 import { bool, inverted, noenforceall, removed, renamed, validNames } from "./options";
 import { scopeManager } from "./scope-manager";
@@ -49,25 +49,25 @@ var api, // Extension API
         "%": true
     },
 
-    declared, // Globals that were declared using /*global ... */ syntax.
+    declared: { [key: string]: IToken }, // Globals that were declared using /*global ... */ syntax.
 
     functionicity = [
         "closure", "exception", "global", "label",
         "outer", "unused", "var"
     ],
 
-    functions, // All of the functions
+    functions: any[], // All of the functions
 
-    inblock,
+    inblock: boolean,
     indent: number,
     lookahead: IToken[],
     lex: Lexer,
-    member,
-    membersOnly,
+    member: { [m: string]: number },
+    membersOnly: { [m: string]: boolean },
     predefined: { [id: string]: boolean },    // Global variables defined by option
 
     stack,
-    urls;
+    urls: string[];
 
 const extraModules: Function[] = [];
 const emitter = new EventEmitter();
@@ -402,7 +402,7 @@ function warning(code: string, t?: IToken, a?: number | string, b?: number | str
     return warn;
 }
 
-function warningAt(code: string, l, ch, a?, b?, c?, d?): JSHintError {
+function warningAt(code: string, l: number, ch: number, a?, b?, c?, d?): JSHintError {
     return warning(code, { line: l, from: ch }, a, b, c, d);
 }
 
@@ -418,7 +418,7 @@ function errorAt(m, l, ch?, a?, b?, c?, d?) {
 }
 
 // Tracking of "internal" scripts, like eval containing a static string
-function addInternalSrc(elem, src) {
+function addInternalSrc(elem: IToken, src: string) {
     var i;
     i = {
         id: "(internal)",
@@ -430,19 +430,19 @@ function addInternalSrc(elem, src) {
 }
 
 function doOption() {
-    var nt = state.tokens.next;
-    var body = nt.body.split(",").map(function (s) { return s.trim(); });
+    const nt = state.tokens.next;
+    const bodyParts = nt.body.split(",").map(function (s) { return s.trim(); });
 
     var predef = {};
     if (nt.type === "globals") {
-        body.forEach(function (g, idx) {
-            g = g.split(":");
+        bodyParts.forEach(function (bodyPart, idx) {
+            const g = bodyPart.split(":");
             var key: string = (g[0] || "").trim();
-            var val = (g[1] || "").trim();
+            var val: string | boolean = (g[1] || "").trim();
 
             if (key === "-" || !key.length) {
                 // Ignore trailing comma
-                if (idx > 0 && idx === body.length - 1) {
+                if (idx > 0 && idx === bodyParts.length - 1) {
                     return;
                 }
                 error("E002", nt);
@@ -470,10 +470,10 @@ function doOption() {
     }
 
     if (nt.type === "exported") {
-        body.forEach(function (e, idx) {
+        bodyParts.forEach(function (e, idx) {
             if (!e.length) {
                 // Ignore trailing comma
-                if (idx > 0 && idx === body.length - 1) {
+                if (idx > 0 && idx === bodyParts.length - 1) {
                     return;
                 }
                 error("E002", nt);
@@ -487,7 +487,7 @@ function doOption() {
     if (nt.type === "members") {
         membersOnly = membersOnly || {};
 
-        body.forEach(function (m) {
+        bodyParts.forEach(function (m) {
             var ch1 = m.charAt(0);
             var ch2 = m.charAt(m.length - 1);
 
@@ -512,10 +512,10 @@ function doOption() {
     ];
 
     if (nt.type === "jshint" || nt.type === "jslint") {
-        body.forEach(function (g) {
-            g = g.split(":");
+        bodyParts.forEach(function (bodyPart) {
+            const g = bodyPart.split(":");
             var key = (g[0] || "").trim();
-            var val = (g[1] || "").trim();
+            var val: string | number = (g[1] || "").trim();
 
             if (!checkOption(key, nt)) {
                 return;
@@ -887,8 +887,8 @@ function isBeginOfExpr(prev: IToken): boolean {
 
 // They are elements of the parsing method called Top Down Operator Precedence.
 
-function expression(rbp: number, initial?): IToken {
-    let left: IToken;
+function expression(rbp: number, initial?: boolean | string | (() => IToken)): IToken {
+    let left: IToken | undefined;
     var isArray = false, isObject = false, isLetExpr = false;
 
     state.nameStack.push();
@@ -927,7 +927,7 @@ function expression(rbp: number, initial?): IToken {
     }
 
     if (initial === true && state.tokens.curr.fud) {
-        left = state.tokens.curr.fud();
+        left = state.tokens.curr.fud() as any;
     }
     else {
         if (state.tokens.curr.nud) {
@@ -991,11 +991,11 @@ function expression(rbp: number, initial?): IToken {
 
 // Functions for conformance of style.
 
-function startLine(token) {
+function startLine(token: IToken) {
     return token.startLine || token.line;
 }
 
-function nobreaknonadjacent(left, right) {
+function nobreaknonadjacent(left: IToken, right: IToken) {
     left = left || state.tokens.curr;
     right = right || state.tokens.next;
     if (!state.option.laxbreak && left.line !== startLine(right)) {
@@ -1003,14 +1003,14 @@ function nobreaknonadjacent(left, right) {
     }
 }
 
-function nolinebreak(t) {
+function nolinebreak(t: IToken) {
     t = t || state.tokens.curr;
     if (t.line !== startLine(state.tokens.next)) {
         warning("E022", t, t.value);
     }
 }
 
-function nobreakcomma(left, right) {
+function nobreakcomma(left: IToken, right: IToken) {
     if (left.line !== startLine(right)) {
         if (!state.option.laxcomma) {
             if (comma['first']) {
@@ -1028,7 +1028,8 @@ function comma(opts?) {
     if (!opts.peek) {
         nobreakcomma(state.tokens.curr, state.tokens.next);
         advance(",");
-    } else {
+    }
+    else {
         nobreakcomma(state.tokens.prev, state.tokens.curr);
     }
 
@@ -1099,14 +1100,14 @@ function delim(s: string): IToken {
     return x;
 }
 
-function stmt(s: string, f: (this: IToken, context: any) => void): IToken {
+function stmt(s: string, f: (this: IToken, context: ILexerContext) => void): IToken {
     var x = delim(s);
     x.identifier = x.reserved = true;
     x.fud = f;
     return x;
 }
 
-function blockstmt(s: string, f: (this: IToken, context) => void) {
+function blockstmt(s: string, f: (this: IToken, context?: ILexerContext) => void) {
     const x = stmt(s, f);
     x.block = true;
     return x;
@@ -1158,7 +1159,7 @@ function type(s: string, func: NullDenotation) {
     return x;
 }
 
-function reserve(name: string, func?) {
+function reserve(name: string, func?: NullDenotation) {
     var x = type(name, func);
     x.identifier = true;
     x.reserved = true;
@@ -1257,7 +1258,7 @@ function relation(s: string, f?: (this: IToken, left: any, right: any) => IToken
     return x;
 }
 
-function isPoorRelation(node) {
+function isPoorRelation(node: IToken): boolean {
     return node &&
         ((node.type === "(number)" && +node.value === 0) ||
             (node.type === "(string)" && node.value === "") ||
@@ -1289,7 +1290,7 @@ typeofValues.es6 = typeofValues.es3.concat("symbol");
 // Checks whether the 'typeof' operator is used with the correct
 // value. For docs on 'typeof' see:
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof
-function isTypoTypeof(left: { type: string; value: string }, right, state) {
+function isTypoTypeof(left: { type: string; value: string }, right: IToken, state) {
     var values: string[];
 
     if (state.option.notypeof)
@@ -1306,7 +1307,7 @@ function isTypoTypeof(left: { type: string; value: string }, right, state) {
     return false;
 }
 
-function isGlobalEval(left, state) {
+function isGlobalEval(left: IToken, state: IState): boolean {
     var isGlobal = false;
 
     // permit methods to refer to an "eval" key in their own context
@@ -1327,7 +1328,7 @@ function isGlobalEval(left, state) {
     return isGlobal;
 }
 
-function findNativePrototype(left) {
+function findNativePrototype(left: IToken): string {
     var natives = [
         "Array", "ArrayBuffer", "Boolean", "Collator", "DataView", "Date",
         "DateTimeFormat", "Error", "EvalError", "Float32Array", "Float64Array",
@@ -1338,21 +1339,24 @@ function findNativePrototype(left) {
         "URIError"
     ];
 
-    function walkPrototype(obj) {
-        if (typeof obj !== "object") return;
+    function walkPrototype(obj: IToken): IToken {
+        if (typeof obj !== "object") return void 0;
         return obj.right === "prototype" ? obj : walkPrototype(obj.left);
     }
 
-    function walkNative(obj) {
+    function walkNative(obj: IToken): string {
         while (!obj.identifier && typeof obj.left === "object")
             obj = obj.left;
 
-        if (obj.identifier && natives.indexOf(obj.value) >= 0)
+        if (obj.identifier && natives.indexOf(obj.value) >= 0) {
             return obj.value;
+        }
+        return void 0;
     }
 
     var prototype = walkPrototype(left);
     if (prototype) return walkNative(prototype);
+    return void 0;
 }
 
 /**
@@ -1363,7 +1367,7 @@ function findNativePrototype(left) {
  * @param {boolean} options.allowDestructuring - whether to allow destructuting binding
  * @returns {boolean} Whether the left hand side is OK
  */
-function checkLeftSideAssign(left, assignToken?, options?: { allowDestructuring?: boolean }) {
+function checkLeftSideAssign(left: IToken, assignToken?: IToken, options?: { allowDestructuring?: boolean }) {
 
     var allowDestructuring = options && options.allowDestructuring;
 
@@ -1427,7 +1431,7 @@ function checkLeftSideAssign(left, assignToken?, options?: { allowDestructuring?
     return false;
 }
 
-function assignop(s: string, f, p: number) {
+function assignop(s: string, f: string | ((left: IToken, that: IToken) => any), p: number) {
     var x = infix(s, typeof f === "function" ? f : function (left, that): IToken | undefined {
         that.left = left;
 
@@ -1460,8 +1464,8 @@ function bitwise(s: string, f: string | LeftDenotation, p: number): IToken {
     return x;
 }
 
-function bitwiseassignop(s) {
-    return assignop(s, function (left, that) {
+function bitwiseassignop(s: string) {
+    return assignop(s, function (left: IToken, that: IToken) {
         if (state.option.bitwise) {
             warning("W016", that, that.id);
         }
@@ -1471,10 +1475,11 @@ function bitwiseassignop(s) {
             return that;
         }
         error("E031", that);
+        return void 0;
     }, 20);
 }
 
-function suffix(s) {
+function suffix(s: string) {
     var x = symbol(s, 150);
 
     x.led = function (left) {
@@ -1504,7 +1509,7 @@ function suffix(s) {
 // argument (see identifier())
 // prop means that this identifier is that of an object property
 
-function optionalidentifier(fnparam?, prop?, preserve?): string | undefined {
+function optionalidentifier(fnparam?: boolean, prop?: boolean, preserve?: boolean): string | undefined {
     if (!state.tokens.next.identifier) {
         return void 0;
     }
@@ -1537,7 +1542,7 @@ function optionalidentifier(fnparam?, prop?, preserve?): string | undefined {
 // fnparam means that this identifier is being defined as a function
 // argument
 // prop means that this identifier is that of an object property
-function identifier(fnparam?, prop?): string | undefined {
+function identifier(fnparam?: boolean, prop?: boolean): string | undefined {
     const i = optionalidentifier(fnparam, prop, false);
     if (i) {
         return i;
@@ -1937,7 +1942,7 @@ function block(ordinary: boolean, stmt?: boolean, isfunc?: boolean, isfatarrow?:
 }
 
 
-function countMember(m) {
+function countMember(m: string) {
     if (membersOnly && typeof membersOnly[m] !== "boolean") {
         warning("W036", state.tokens.curr, m);
     }
@@ -2455,7 +2460,7 @@ infix(".", function (left, that) {
     return that;
 }, 160, true);
 
-infix("(", function (left, that) {
+infix("(", function (left: IToken, that: IToken) {
     if (state.option.immed && left && !left.immed && left.id === "function") {
         warning("W062");
     }
@@ -2842,17 +2847,18 @@ function isMethod() {
 }
 
 
-function isPropertyName(token) {
+function isPropertyName(token: IToken) {
     return token.identifier || token.id === "(string)" || token.id === "(number)";
 }
 
 
-function propertyName(preserveOrToken?) {
-    var id;
+function propertyName(preserveOrToken?: boolean | IToken) {
+    var id: string | IToken;
     var preserve = true;
     if (typeof preserveOrToken === "object") {
         id = preserveOrToken;
-    } else {
+    }
+    else {
         preserve = preserveOrToken;
         id = optionalidentifier(false, true, preserve);
     }
@@ -2863,13 +2869,15 @@ function propertyName(preserveOrToken?) {
             if (!preserve) {
                 advance();
             }
-        } else if (state.tokens.next.id === "(number)") {
+        }
+        else if (state.tokens.next.id === "(number)") {
             id = state.tokens.next.value.toString();
             if (!preserve) {
                 advance();
             }
         }
-    } else if (typeof id === "object") {
+    }
+    else if (typeof id === "object") {
         if (id.id === "(string)" || id.id === "(identifier)") id = id.value;
         else if (id.id === "(number)") id = id.value.toString();
     }
@@ -3600,7 +3608,7 @@ function destructuringPatternMatch(tokens: IToken[], value: IToken) {
     });
 }
 
-function blockVariableStatement(type, statement, context) {
+function blockVariableStatement(type, statement, context: ILexerContext) {
     // used for both let and const statements
 
     var prefix = context && context.prefix;
@@ -3711,7 +3719,7 @@ var letstatement = stmt("let", function (context) {
 });
 letstatement.exps = true;
 
-var varstatement = stmt("var", function (this: IToken, context) {
+var varstatement = stmt("var", function (this: IToken, context: ILexerContext) {
     var prefix = context && context.prefix;
     var inexport = context && context.inexport;
     var tokens, lone, value;
@@ -3838,7 +3846,7 @@ function classdef(this: IToken, isStatement: boolean) {
     return this;
 }
 
-function classtail(c) {
+function classtail(c: IToken) {
     var wasInClassBody = state.inClassBody;
     // ClassHeritage(opt)
     if (state.tokens.next.value === "extends") {
@@ -3849,7 +3857,7 @@ function classtail(c) {
     state.inClassBody = true;
     advance("{");
     // ClassBody(opt)
-    c.body = classbody(c);
+    c.body = classbody(c) as any;
     advance("}");
     state.inClassBody = wasInClassBody;
 }
@@ -3885,7 +3893,8 @@ function classbody(c) {
         if (name.id === "[") {
             name = computedPropertyName();
             computed = true;
-        } else if (isPropertyName(name)) {
+        }
+        else if (isPropertyName(name)) {
             // Non-Computed PropertyName
             advance();
             computed = false;
@@ -3950,7 +3959,8 @@ function classbody(c) {
         if (getset && name.value === "constructor") {
             var propDesc = getset.value === "get" ? "class getter method" : "class setter method";
             error("E049", name, propDesc, "constructor");
-        } else if (name.value === "prototype") {
+        }
+        else if (name.value === "prototype") {
             error("E049", name, "class method", "prototype");
         }
 
@@ -5196,7 +5206,7 @@ export const JSHINT: IJSHINT = <any>function lint(s: string, o: JSHintOptions, g
     combine(predefined, g || {});
 
     declared = Object.create(null);
-    const exported = Object.create(null); // Variables that live outside the current file
+    const exported: { [item: string]: boolean } = Object.create(null); // Variables that live outside the current file
 
     const newOptionObj = {};
     const newIgnoredObj: { [something: string]: boolean } = {};
@@ -5248,11 +5258,11 @@ export const JSHINT: IJSHINT = <any>function lint(s: string, o: JSHintOptions, g
     indent = 1;
 
     const scopeManagerInst = scopeManager(state, predefined, exported, declared);
-    scopeManagerInst.on("warning", function (ev) {
+    scopeManagerInst.on("warning", function (ev: { code: string; token: IToken; data: any; }) {
         warning.apply(null, [ev.code, ev.token].concat(ev.data));
     });
 
-    scopeManagerInst.on("error", function (ev) {
+    scopeManagerInst.on("error", function (ev: { code: string; token: IToken; data: any; }) {
         error.apply(null, [ev.code, ev.token].concat(ev.data));
     });
 
@@ -5297,8 +5307,8 @@ export const JSHINT: IJSHINT = <any>function lint(s: string, o: JSHintOptions, g
             warningAt.apply(null, [code, data.line, data.char].concat(data.data));
         },
 
-        on: function (names, listener) {
-            names.split(" ").forEach(function (name) {
+        on: function (names: string, listener: Function) {
+            names.split(" ").forEach(function (name: string) {
                 emitter.on(name, listener);
             }.bind(this));
         }
@@ -5454,7 +5464,7 @@ JSHINT.data = function () {
         member?;
         options?;
         unused?;
-        urls?;
+        urls?: string[];
     } = {
             functions: [],
             options: state.option

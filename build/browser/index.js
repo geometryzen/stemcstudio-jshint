@@ -76,8 +76,7 @@ var EventEmitter = (function () {
         // To avoid recursion in the case that type === "newListener"! Before
         // adding it to the listeners, first emit "newListener".
         if (this._events.newListener)
-            this.emit('newListener', type, isFunction(listener.listener) ?
-                listener.listener : listener);
+            this.emit('newListener', type, isFunction(listener['listener']) ? listener['listener'] : listener);
         if (!this._events[type])
             // Optimize the case of one listener. Don't need the extra array object.
             this._events[type] = listener;
@@ -1481,8 +1480,6 @@ var Context = {
     Block: 1,
     Template: 2
 };
-// Object that handles postponed lexing verifications that checks the parsed
-// environment state.
 function asyncTrigger() {
     var _checks = [];
     return {
@@ -2689,8 +2686,7 @@ var Lexer = (function () {
      * pages with non-breaking pages produce syntax errors.
      */
     Lexer.prototype.scanNonBreakingSpaces = function () {
-        return state.option.nonbsp ?
-            this.input.search(/(\u00A0)/) : -1;
+        return state.option.nonbsp ? this.input.search(/(\u00A0)/) : -1;
     };
     /*
      * Scan for characters that get silently deleted by one or more browsers.
@@ -2711,9 +2707,7 @@ var Lexer = (function () {
         }
         // Methods that work with multi-line structures and move the
         // character pointer.
-        var match = this.scanComments() ||
-            this.scanStringLiteral(checks) ||
-            this.scanTemplateLiteral(checks);
+        var match = this.scanComments() || this.scanStringLiteral(checks) || this.scanTemplateLiteral(checks);
         if (match) {
             return match;
         }
@@ -4734,10 +4728,8 @@ var scopeManager = function (state, predefined, exported, declared) {
             },
             /**
              * Returns if a break label exists in the function scope
-             * @param {string} labelName
-             * @returns {boolean}
              */
-            hasBreakLabel: function (labelName) {
+            hasBreakLabel: function hasBreakLabel(labelName) {
                 for (var i = _scopeStack.length - 1; i >= 0; i--) {
                     var current = _scopeStack[i];
                     if (current["(breakLabels)"][labelName]) {
@@ -4791,7 +4783,7 @@ var scopeManager = function (state, predefined, exported, declared) {
                         paramScope["(labels)"][labelName]["(unused)"] = false;
                     }
                 }
-                if (token && (state.ignored.W117 || state.option.undef === false)) {
+                if (token && (state.ignored['W117'] || state.option.undef === false)) {
                     token.ignoreUndef = true;
                 }
                 _setupUsages(labelName);
@@ -4801,8 +4793,8 @@ var scopeManager = function (state, predefined, exported, declared) {
                 }
             },
             reassign: function (labelName, token) {
-                token.ignoreW020 = state.ignored.W020;
-                token.ignoreW021 = state.ignored.W021;
+                token.ignoreW020 = state.ignored['W020'];
+                token.ignoreW021 = state.ignored['W021'];
                 this.modify(labelName, token);
                 _current["(usages)"][labelName]["(reassigned)"].push(token);
             },
@@ -5292,16 +5284,16 @@ function addInternalSrc(elem, src) {
 }
 function doOption() {
     var nt = state.tokens.next;
-    var body = nt.body.split(",").map(function (s) { return s.trim(); });
+    var bodyParts = nt.body.split(",").map(function (s) { return s.trim(); });
     var predef = {};
     if (nt.type === "globals") {
-        body.forEach(function (g, idx) {
-            g = g.split(":");
+        bodyParts.forEach(function (bodyPart, idx) {
+            var g = bodyPart.split(":");
             var key = (g[0] || "").trim();
             var val$$1 = (g[1] || "").trim();
             if (key === "-" || !key.length) {
                 // Ignore trailing comma
-                if (idx > 0 && idx === body.length - 1) {
+                if (idx > 0 && idx === bodyParts.length - 1) {
                     return;
                 }
                 error("E002", nt);
@@ -5325,10 +5317,10 @@ function doOption() {
         }
     }
     if (nt.type === "exported") {
-        body.forEach(function (e, idx) {
+        bodyParts.forEach(function (e, idx) {
             if (!e.length) {
                 // Ignore trailing comma
-                if (idx > 0 && idx === body.length - 1) {
+                if (idx > 0 && idx === bodyParts.length - 1) {
                     return;
                 }
                 error("E002", nt);
@@ -5339,7 +5331,7 @@ function doOption() {
     }
     if (nt.type === "members") {
         membersOnly = membersOnly || {};
-        body.forEach(function (m) {
+        bodyParts.forEach(function (m) {
             var ch1 = m.charAt(0);
             var ch2 = m.charAt(m.length - 1);
             if (ch1 === ch2 && (ch1 === "\"" || ch1 === "'")) {
@@ -5360,8 +5352,8 @@ function doOption() {
         "indent"
     ];
     if (nt.type === "jshint" || nt.type === "jslint") {
-        body.forEach(function (g) {
-            g = g.split(":");
+        bodyParts.forEach(function (bodyPart) {
+            var g = bodyPart.split(":");
             var key = (g[0] || "").trim();
             var val$$1 = (g[1] || "").trim();
             if (!checkOption(key, nt)) {
@@ -6077,18 +6069,21 @@ function findNativePrototype(left) {
     ];
     function walkPrototype(obj) {
         if (typeof obj !== "object")
-            return;
+            return void 0;
         return obj.right === "prototype" ? obj : walkPrototype(obj.left);
     }
     function walkNative(obj) {
         while (!obj.identifier && typeof obj.left === "object")
             obj = obj.left;
-        if (obj.identifier && natives.indexOf(obj.value) >= 0)
+        if (obj.identifier && natives.indexOf(obj.value) >= 0) {
             return obj.value;
+        }
+        return void 0;
     }
     var prototype = walkPrototype(left);
     if (prototype)
         return walkNative(prototype);
+    return void 0;
 }
 /**
  * Checks the left hand side of an assignment for issues, returns if ok
@@ -6193,6 +6188,7 @@ function bitwiseassignop(s) {
             return that;
         }
         error("E031", that);
+        return void 0;
     }, 20);
 }
 function suffix(s) {

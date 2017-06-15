@@ -15,7 +15,7 @@ export class EventEmitter {
         return this;
     }
 
-    emit(type: string, event, listener?) {
+    emit(type: string, event: any, listener?: Function) {
         var er, handler, len, args, i, listeners;
 
         if (!this._events)
@@ -73,7 +73,7 @@ export class EventEmitter {
         return true;
     }
 
-    on(type: string, listener) {
+    on(type: string, listener: Function) {
         if (!isFunction(listener))
             throw TypeError('listener must be a function');
 
@@ -84,8 +84,7 @@ export class EventEmitter {
         // adding it to the listeners, first emit "newListener".
         if (this._events.newListener)
             this.emit('newListener', type,
-                isFunction(listener.listener) ?
-                    listener.listener : listener);
+                isFunction(listener['listener']) ? listener['listener'] : listener);
 
         if (!this._events[type])
             // Optimize the case of one listener. Don't need the extra array object.
@@ -122,7 +121,7 @@ export class EventEmitter {
         return this;
     }
 
-    once(type, listener) {
+    once(type: string, listener: Function) {
         if (!isFunction(listener))
             throw TypeError('listener must be a function');
 
@@ -144,7 +143,7 @@ export class EventEmitter {
     }
 
     // emits a 'removeListener' event iff the listener was removed
-    off(type: string, listener) {
+    off(type: string, listener: Function) {
         var list, position, length, i;
 
         if (!isFunction(listener))
@@ -189,7 +188,7 @@ export class EventEmitter {
         return this;
     }
 
-    removeAllListeners(type?) {
+    removeAllListeners(type?: string) {
         var key, listeners;
 
         if (!this._events)
@@ -242,7 +241,7 @@ export class EventEmitter {
     // By default EventEmitters will print a warning if more than 10 listeners are
     // added to it. This is a useful default which helps finding memory leaks.
     static defaultMaxListeners = 10;
-    static listenerCount(emitter, type) {
+    static listenerCount(emitter: EventEmitter, type: string) {
         let ret: number;
         if (!emitter._events || !emitter._events[type])
             ret = 0;

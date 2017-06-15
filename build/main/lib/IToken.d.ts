@@ -1,3 +1,4 @@
+import { ILexerContext } from './lex';
 export interface LeftDenotation {
     (this: IToken, left: IToken): any;
 }
@@ -8,25 +9,25 @@ export interface IToken {
     accessorType?: 'get' | 'set';
     allowNewLine?: boolean;
     arity?: string;
-    assign?: any;
+    assign?: boolean;
     base?: number;
     beginStmt?: any;
     /**
      * Duplicates beginStmt?
      */
-    beginsStmt?: any;
-    block?: any;
-    body?: any;
-    caseFallsThrough?: any;
+    beginsStmt?: boolean;
+    block?: boolean;
+    body?: string;
+    caseFallsThrough?: boolean;
     cases?: any[];
     char?: string;
-    character?: any;
-    check?: any;
-    comment?: any;
+    character?: number;
+    check?: () => void;
+    comment?: boolean;
     commentType?: number | string;
-    context?: any;
-    delim?: any;
-    depth?: any;
+    context?: ILexerContext;
+    delim?: boolean;
+    depth?: number;
     destructAssign?: {
         id: string;
         token: IToken;
@@ -37,32 +38,40 @@ export interface IToken {
     flags?: string[];
     forgiveUndef?: boolean;
     from?: number;
-    fud?: any;
+    fud?: ((this: IToken, context?: ILexerContext) => IToken | void);
+    heritage?: IToken;
     id?: string;
-    identifier?: any;
-    immed?: any;
-    inBracelessBlock?: any;
+    identifier?: boolean;
+    ignoreUndef?: boolean;
+    ignoreW020?: boolean;
+    ignoreW021?: boolean;
+    immed?: boolean;
+    inBracelessBlock?: boolean;
     infix?: boolean;
     isFutureReservedWord?: boolean;
     isLegacy?: boolean;
     isMalformed?: boolean;
-    isMetaProperty?: any;
+    isMetaProperty?: boolean;
     isMultiline?: boolean;
     isProperty?: boolean;
-    isSpecial?: any;
-    isUnclosed?: any;
+    isSpecial?: boolean;
+    isUnclosed?: boolean;
     jump?: number;
-    label?: any;
-    labelled?: any;
+    label?: string;
+    labelled?: boolean;
     lbp?: number;
     led?: LeftDenotation;
     left?: IToken;
-    line?: any;
+    line?: number;
     /**
      * Duplicates isMalformed?
      */
     malformed?: boolean;
-    meta?: any;
+    meta?: {
+        es5?: boolean;
+        isFutureReservedWord?: boolean;
+        strictOnly?: boolean;
+    };
     name?: string;
     namedExpr?: boolean;
     noSubst?: boolean;
@@ -70,7 +79,8 @@ export interface IToken {
     paren?: any;
     prereg?: boolean;
     quote?: "'" | '"';
-    reach?: any;
+    raw_text?: string;
+    reach?: boolean;
     reserved?: boolean;
     right?: IToken;
     startChar?: number;
